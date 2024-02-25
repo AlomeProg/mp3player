@@ -7,10 +7,10 @@
 # Anchor info:    a <id> <name> <posx> <posy> <enabled>
 # Control info:   c <id> <type> <name> <rectangle> <anchor_id> <text>
 #
-r 0 40 -1 -1
-a 001 anchor01 120 48 1
+r 120 88 -1 -1
+a 001 anchor01 0 0 1
 c 000 0 WindowBox000 0 0 408 192 1 MP3PLAYER
-c 001 5 Button001 288 144 96 24 1 PLAY
-c 002 5 Button002 288 96 96 24 1 RESUME/STOP
-c 003 5 Button003 288 48 96 24 1 PLAY/PAUSE
-c 004 12 TextBox004 24 144 240 24 1 PATH
+c 001 5 btn_load 288 144 96 24 1 LOAD
+c 002 5 btn_resume 288 96 96 24 1 RESUME/PAUSE
+c 003 12 tb_path 24 144 240 24 1 PATH
+c 004 5 btn_play 288 48 96 24 1 PLAY/STOP

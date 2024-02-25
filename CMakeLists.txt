@@ -15,4 +15,5 @@ file(GLOB_RECURSE SOURCE_MP3PLAYER src/*.cpp)
 
 add_executable(mp3player ${SOURCE_MP3PLAYER})
 
-target_link_libraries(mp3player raylib)
+target_link_libraries(mp3player raylib raygui)
+target_include_directories(mp3player PRIVATE include/)
