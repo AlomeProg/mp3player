@@ -37,9 +37,13 @@ typedef struct {
     bool tb_pathEditMode;
     char tb_pathText[128];
     bool btn_playPressed;
+    bool db_file_pathsEditMode;
+    int db_file_pathsActive;
 
-    Rectangle layoutRecs[5];
+    Rectangle layoutRecs[6];
 
+    char db_file_paths[256][16];
+    int db_file_paths_index;
     // Custom state variables (depend on development software)
     // NOTE: This variables should be added manually if required
 
@@ -103,33 +107,37 @@ GuiUIState InitGuiUI(void)
     state.tb_pathEditMode = false;
     strcpy(state.tb_pathText, "PATH");
     state.btn_playPressed = false;
+    state.db_file_pathsEditMode = false;
+    state.db_file_pathsActive = 0;
 
-    state.layoutRecs[0] = (Rectangle){ 0, 0, 408, 192 };
+    state.layoutRecs[0] = (Rectangle){ 0, 0, 408, 336 };
     state.layoutRecs[1] = (Rectangle){ 288, 144, 96, 24 };
     state.layoutRecs[2] = (Rectangle){ 288, 96, 96, 24 };
-    state.layoutRecs[3] = (Rectangle){ 24, 144, 240, 24 };
+    state.layoutRecs[3] = (Rectangle){ 24, 48, 240, 24 };
     state.layoutRecs[4] = (Rectangle){ 288, 48, 96, 24 };
+    state.layoutRecs[5] = (Rectangle){ 24, 96, 120, 24 };
 
     // Custom variables initialization
+    state.db_file_paths_index = 0;
 
     return state;
 }
 
 void GuiUI(GuiUIState *state)
 {
-    const char *WindowBox000Text = "MP3PLAYER";
-    const char *btn_loadText = "LOAD";
-    const char *btn_resumeText = "RESUME/PAUSE";
-    const char *btn_playText = "PLAY/STOP";
-    
+    if (state->db_file_pathsEditMode) GuiLock();
+
     if (state->WindowBox000Active)
     {
-        state->WindowBox000Active = !GuiWindowBox(state->layoutRecs[0], WindowBox000Text);
-        state->btn_loadPressed = GuiButton(state->layoutRecs[1], btn_loadText); 
-        state->btn_resumePressed = GuiButton(state->layoutRecs[2], btn_resumeText); 
+        state->WindowBox000Active = !GuiWindowBox(state->layoutRecs[0], "MP3PLAYER");
+        state->btn_loadPressed = GuiButton(state->layoutRecs[1], "LOAD"); 
+        state->btn_resumePressed = GuiButton(state->layoutRecs[2], "RESUME/PAUSE"); 
         if (GuiTextBox(state->layoutRecs[3], state->tb_pathText, 128, state->tb_pathEditMode)) state->tb_pathEditMode = !state->tb_pathEditMode;
-        state->btn_playPressed = GuiButton(state->layoutRecs[4], btn_playText); 
+        state->btn_playPressed = GuiButton(state->layoutRecs[4], "PLAY/STOP"); 
+        if (GuiDropdownBox(state->layoutRecs[5], NULL, &state->db_file_pathsActive, state->db_file_pathsEditMode)) state->db_file_pathsEditMode = !state->db_file_pathsEditMode;
     }
+    
+    GuiUnlock();
 }
 
 #endif // GUI_UI_IMPLEMENTATION
