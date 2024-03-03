@@ -15,6 +15,9 @@ int lv_playlist_scroll_index = 0;
 int lv_playlist_active = -1;
 int current_active = -1;
 std::string lv_playlist_text = "";
+float sb_volume   = 100;
+float sb_pitch    = 100;
+float sb_pan      = 100;
 
 // Глобальные переменные (общие для всего приложения)
 Music music;                          // Текущая музыка
@@ -42,11 +45,13 @@ void BtnPlay(void)
 
 void BtnPause(void)
 {
+  TraceLog(LOG_INFO, "PAUSE");
   PauseMusicStream(music);
 }
 
 void BtnStop(void)
 {
+  TraceLog(LOG_INFO, "STOP");
   StopMusicStream(music);
 }
 
@@ -59,8 +64,42 @@ void InitGUI(void)
   gui_funcs["btn_pause"] = BtnPause;
   gui_rects["btn_stop"] = {230.0f, 350.0f, 100.0f, 40.0f};
   gui_funcs["btn_stop"] = BtnStop;
-  
+
+  gui_rects["sb_volume"] = {80.0f, 320.0f, 250.0f, 20.0f};
+  gui_rects["sb_pitch"] = {80.0f, 290.0f, 250.0f, 20.0f};
+  gui_rects["sb_pan"] = {80.0f, 260.0f, 250.0f, 20.0f};
+
   gui_rects["lv_playlist"] = {340.0f, 10.0f, 250.0f, 380.0f};
+}
+
+void UpdateVolume(void)
+{
+  if(sb_volume <= 0.01) 
+  {
+    SetMusicVolume(music, 0.0f);
+    return;
+  }
+  SetMusicVolume(music, sb_volume / 100.0f);
+}
+
+void UpdatePitch(void)
+{
+  if(sb_pitch <= 0.01) 
+  {
+    SetMusicPitch(music, 0.0f);
+    return;
+  }
+  SetMusicPitch(music, sb_pitch / 100.0f);
+}
+
+void UpdatePan(void)
+{
+  if(sb_pan <= 0.01) 
+  {
+    SetMusicPan(music, 0.0f);
+    return;
+  }
+  SetMusicPan(music, sb_pan / 100.0f);
 }
 
 void UpdateGUI(void)
@@ -70,11 +109,19 @@ void UpdateGUI(void)
   if(GuiButton(gui_rects["btn_stop"], "Stop")) gui_funcs["btn_stop"]();
   GuiListView(gui_rects["lv_playlist"], lv_playlist_text.c_str(), &lv_playlist_scroll_index, &lv_playlist_active);
   if(lv_playlist_active != -1) LoadMusic();
+  int tmp = 0;
+  tmp = GuiSlider(gui_rects["sb_volume"], "Volume:", "", &sb_volume, 0, 100);
+  if(tmp == 1) UpdateVolume();
+  tmp = GuiSlider(gui_rects["sb_pitch"], "Pitch:", "", &sb_pitch, 0, 100);
+  if(tmp == 1) UpdateVolume();
+  tmp = GuiSlider(gui_rects["sb_pan"], "Pan:", "", &sb_pan, 0, 100);
+  if(tmp == 1) UpdateVolume();
 }
 
 int main()
 {
   InitWindow(600, 400, "mp3player");
+  SetWindowState(FLAG_VSYNC_HINT);
   InitAudioDevice();
   InitGUI();
 
@@ -113,8 +160,9 @@ int main()
     UpdateMusicStream(music);
 
     BeginDrawing();
-    ClearBackground(BLACK);
+    ClearBackground(RAYWHITE);
     UpdateGUI();
+    DrawFPS(0.0f, 0.0f);
     EndDrawing();
   }
   CloseAudioDevice();
