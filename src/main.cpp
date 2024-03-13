@@ -4,6 +4,9 @@
 #include <numeric>
 #include <array>
 #include <functional>
+#include <complex>
+#include <cmath>
+#include <iostream>
 
 #include "raylib.h"
 #define RAYGUI_IMPLEMENTATION
@@ -20,11 +23,15 @@ float sb_volume   = 100;
 float sb_pitch    = 100;
 float sb_pan      = 100;
 std::array<float, 320> averageVolume; // Громкость для визуализации
+float sb_freq0    = 200;
+float sb_freq1    = 3000;
+float sb_freq2    = 5000;
 
 // Глобальные переменные (общие для всего приложения)
 Music music;                          // Текущая музыка
 std::vector<std::string> full_paths;  // Пути до файлов музыки
 std::vector<std::string> name_files;  // Имя файла для отображения плейлиста
+bool is_equalizer = false;            // Включен ли эквалайзер
 
 // Функции для интерфейса
 void LoadMusic(void)
@@ -74,6 +81,11 @@ void InitGUI(void)
   gui_rects["lv_playlist"] = {340.0f, 10.0f, 250.0f, 240.0f};
 
   gui_rects["r_visual"] = {10.0f, 10.0f, 320.0f, 240.0f};
+  gui_rects["cb_equalizer"] = {340.0f, 260.0f, 20.0f, 20.0f};
+
+  gui_rects["sb_freq0"] = {400.0f, 290.0f, 100.0f, 20.0f};
+  gui_rects["sb_freq1"] = {400.0f, 320.0f, 100.0f, 20.0f};
+  gui_rects["sb_freq2"] = {400.0f, 350.0f, 100.0f, 20.0f};
 }
 
 void UpdateVolume(void)
@@ -117,9 +129,12 @@ void UpdateGUI(void)
   tmp = GuiSlider(gui_rects["sb_volume"], "Volume:", "", &sb_volume, 0, 100);
   if(tmp == 1) UpdateVolume();
   tmp = GuiSlider(gui_rects["sb_pitch"], "Pitch:", "", &sb_pitch, 0, 100);
-  if(tmp == 1) UpdateVolume();
+  if(tmp == 1) UpdatePitch();
   tmp = GuiSlider(gui_rects["sb_pan"], "Pan:", "", &sb_pan, 0, 100);
-  if(tmp == 1) UpdateVolume();
+  if(tmp == 1) UpdatePan();
+  tmp = GuiSlider(gui_rects["sb_freq0"], "Freq0:", "", &sb_freq0, 20, 20000);
+  tmp = GuiSlider(gui_rects["sb_freq1"], "Freq1:", "", &sb_freq1, 20, 20000);
+  tmp = GuiSlider(gui_rects["sb_freq2"], "Freq2:", "", &sb_freq2, 20, 20000);
   
   DrawRectangleLinesEx(gui_rects["r_visual"], 2.0f, BLACK);
   for (int i = 0; i < averageVolume.size(); i++)
@@ -129,28 +144,115 @@ void UpdateGUI(void)
       gui_rects["r_visual"].x + 1 + i,
       gui_rects["r_visual"].y + gui_rects["r_visual"].height - 1, MAROON
     );
+  GuiCheckBox(gui_rects["cb_equalizer"], "Equalizer", &is_equalizer);
+}
+
+void fft(float* real, float* imag, int n) {
+  if (n == 1) return;
+
+  float* real_even = (float*)malloc(n / 2 * sizeof(float));
+  float* imag_even = (float*)malloc(n / 2 * sizeof(float));
+  float* real_odd = (float*)malloc(n / 2 * sizeof(float));
+  float* imag_odd = (float*)malloc(n / 2 * sizeof(float));
+
+  for (int i = 0; i < n / 2; ++i) {
+    real_even[i] = real[2 * i];
+    imag_even[i] = imag[2 * i];
+    real_odd[i] = real[2 * i + 1];
+    imag_odd[i] = imag[2 * i + 1];
+  }
+
+  fft(real_even, imag_even, n / 2);
+  fft(real_odd, imag_odd, n / 2);
+
+  for (int k = 0; k < n / 2; ++k) {
+    float t_real = cos(2 * PI * k / n) * real_odd[k] - sin(2 * PI * k / n) * imag_odd[k];
+    float t_imag = sin(2 * PI * k / n) * real_odd[k] + cos(2 * PI * k / n) * imag_odd[k];
+    real[k] = real_even[k] + t_real;
+    imag[k] = imag_even[k] + t_imag;
+    real[k + n / 2] = real_even[k] - t_real;
+    imag[k + n / 2] = imag_even[k] - t_imag;
+  }
+
+  free(real_even);
+  free(imag_even);
+  free(real_odd);
+  free(imag_odd);
+}
+
+void ifft(float* real, float* imag, int n) {
+  // Меняем действительные и мнимые части местами
+  for (int i = 0; i < n; ++i) {
+    float temp = real[i];
+    real[i] = imag[i];
+    imag[i] = temp;
+  }
+
+  // Выполняем прямое преобразование Фурье
+  fft(real, imag, n);
+
+  // Меняем действительные и мнимые части обратно и делим на n
+  for (int i = 0; i < n; ++i) {
+    float temp = real[i];
+    real[i] = imag[i] / n;
+    imag[i] = temp / n;
+  }
+}
+
+// Функция для создания эквалайзера для одной частоты
+void equalize_frequency(float* real, float* imag, int n, int sampleRate, float targetFrequency, float targetAmplitude) {
+    int targetIndex = targetFrequency * n / sampleRate;
+
+    // Вычисляем текущую амплитуду целевой частоты
+    float currentAmplitude = sqrt(real[targetIndex] * real[targetIndex] + imag[targetIndex] * imag[targetIndex]);
+
+    // Вычисляем коэффициент масштабирования для установки нужной амплитуды
+    float scale = targetAmplitude / currentAmplitude;
+
+    // Масштабируем амплитуду целевой частоты
+    real[targetIndex] *= scale;
+    imag[targetIndex] *= scale;
 }
 
 void ProcessAudio(void *buffer, unsigned int frames)
 {
   float *samples = (float *)buffer;   // Samples internally stored as <float>s
   float average = 0.0f;               // Temporary average volume
-
+    
   for (unsigned int frame = 0; frame < frames; frame++)
   {
     float *left = &samples[frame * 2 + 0], *right = &samples[frame * 2 + 1];
-
-    // *left = powf(fabsf(*left), exponent) * ( (*left < 0.0f)? -1.0f : 1.0f );
-    // *right = powf(fabsf(*right), exponent) * ( (*right < 0.0f)? -1.0f : 1.0f );
-
+    
     average += fabsf(*left) / frames;   // accumulating average volume
     average += fabsf(*right) / frames;
   }
 
-  // Moving history to the left
   for (int i = 0; i < averageVolume.size(); i++) averageVolume[i] = averageVolume[i + 1];
 
-  averageVolume.at(averageVolume.size()-1) = average;         // Adding last average value
+  averageVolume.at(averageVolume.size()-1) = average; 
+
+  if(!is_equalizer) return;
+
+  float *real = (float*)calloc(512, sizeof(float));
+  float *imag = (float*)calloc(512, sizeof(float));
+
+  for (size_t i = 0; i < frames; i++)
+  {
+    real[i] = samples[i];
+  }
+
+  fft(real, imag, 512);
+
+  equalize_frequency(real, imag, 512, 44100, sb_freq0, 0.5);
+  equalize_frequency(real, imag, 512, 44100, sb_freq1, 2);
+  equalize_frequency(real, imag, 512, 44100, sb_freq2, 3);
+
+  ifft(real, imag, 512);
+  
+  for (size_t i = 0; i < frames; i++)
+  {
+    samples[i] = real[i];
+  }
 }
 
 int main()
