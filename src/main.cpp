@@ -2,6 +2,7 @@
 #include <string>
 #include <map>
 #include <numeric>
+#include <array>
 #include <functional>
 
 #include "raylib.h"
@@ -18,6 +19,7 @@ std::string lv_playlist_text = "";
 float sb_volume   = 100;
 float sb_pitch    = 100;
 float sb_pan      = 100;
+std::array<float, 320> averageVolume; // Громкость для визуализации
 
 // Глобальные переменные (общие для всего приложения)
 Music music;                          // Текущая музыка
@@ -69,7 +71,9 @@ void InitGUI(void)
   gui_rects["sb_pitch"] = {80.0f, 290.0f, 250.0f, 20.0f};
   gui_rects["sb_pan"] = {80.0f, 260.0f, 250.0f, 20.0f};
 
-  gui_rects["lv_playlist"] = {340.0f, 10.0f, 250.0f, 380.0f};
+  gui_rects["lv_playlist"] = {340.0f, 10.0f, 250.0f, 240.0f};
+
+  gui_rects["r_visual"] = {10.0f, 10.0f, 320.0f, 240.0f};
 }
 
 void UpdateVolume(void)
@@ -116,6 +120,37 @@ void UpdateGUI(void)
   if(tmp == 1) UpdateVolume();
   tmp = GuiSlider(gui_rects["sb_pan"], "Pan:", "", &sb_pan, 0, 100);
   if(tmp == 1) UpdateVolume();
+  
+  DrawRectangleLinesEx(gui_rects["r_visual"], 2.0f, BLACK);
+  for (int i = 0; i < averageVolume.size(); i++)
+    DrawLine(
+      gui_rects["r_visual"].x + 1 + i, 
+      gui_rects["r_visual"].y + gui_rects["r_visual"].height - 1 - averageVolume[i] * 256, 
+      gui_rects["r_visual"].x + 1 + i,
+      gui_rects["r_visual"].y + gui_rects["r_visual"].height - 1, MAROON
+    );
+}
+
+void ProcessAudio(void *buffer, unsigned int frames)
+{
+  float *samples = (float *)buffer;   // Samples internally stored as <float>s
+  float average = 0.0f;               // Temporary average volume
+
+  for (unsigned int frame = 0; frame < frames; frame++)
+  {
+    float *left = &samples[frame * 2 + 0], *right = &samples[frame * 2 + 1];
+
+    // *left = powf(fabsf(*left), exponent) * ( (*left < 0.0f)? -1.0f : 1.0f );
+    // *right = powf(fabsf(*right), exponent) * ( (*right < 0.0f)? -1.0f : 1.0f );
+
+    average += fabsf(*left) / frames;   // accumulating average volume
+    average += fabsf(*right) / frames;
+  }
+
+  // Moving history to the left
+  for (int i = 0; i < averageVolume.size(); i++) averageVolume[i] = averageVolume[i + 1];
+
+  averageVolume.at(averageVolume.size()-1) = average;         // Adding last average value
 }
 
 int main()
@@ -124,6 +159,8 @@ int main()
   SetWindowState(FLAG_VSYNC_HINT);
   InitAudioDevice();
   InitGUI();
+
+  AttachAudioMixedProcessor(ProcessAudio);
 
   GuiSetStyle(0, 16, 20);
 
